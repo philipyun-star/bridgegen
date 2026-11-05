@@ -1,0 +1,22 @@
+{
+  "description": "params와 result가 빈 객체",
+  "input": {
+    "type": "rpc_request",
+    "id": "5",
+    "version": 1,
+    "target": "native",
+    "method": "resetPing",
+    "params": {}
+  },
+  "expect": {
+    "type": "rpc_response",
+    "id": "5",
+    "version": 1,
+    "source": "native",
+    "method": "resetPing",
+    "result": {}
+  },
+  "calls": [
+    "resetPing"
+  ]
+}

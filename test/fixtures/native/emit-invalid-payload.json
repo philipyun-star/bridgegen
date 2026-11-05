@@ -1,0 +1,15 @@
+{
+  "description": "payload가 계약과 다르면 Handler를 부르지 않고 버린다",
+  "input": {
+    "type": "event",
+    "version": 1,
+    "source": "web",
+    "target": "native",
+    "event": "logPing",
+    "payload": {
+      "message": 123
+    }
+  },
+  "expect": null,
+  "calls": []
+}

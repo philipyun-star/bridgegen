@@ -1,0 +1,22 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - run: npm ci || npm install
+      - run: npm test
+      - name: conformance (Swift · Kotlin)
+        run: |
+          bash test/ios/run.sh
+          eval "$(bash test/android/fetch-kotlin-toolchain.sh .toolchain)"
+          bash test/android/run.sh
+      - name: 예시 spec으로 세 패키지 생성 (npm tgz · Swift Package · Maven AAR)
+        run: node src/cli.mjs build examples/ping/asyncapi.yaml --out examples/ping/out --verify-ios
+      - uses: actions/upload-artifact@v4
+        with: { name: ping-bridge-packages, path: examples/ping/out/*.tgz }

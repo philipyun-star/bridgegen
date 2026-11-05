@@ -1,0 +1,15 @@
+node_modules/
+*/out/
+examples/*/out/
+bridgegen-out/
+poc/out/
+.gradle/
+build/
+.build/
+DerivedData/
+*.tgz
+.DS_Store
+local.properties
+test/.gen/
+poc/ios/PingPoC.xcodeproj/
+poc/web/node_modules/

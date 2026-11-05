@@ -1,0 +1,17 @@
+{
+  "description": "event는 Handler를 부르고 응답하지 않는다",
+  "input": {
+    "type": "event",
+    "version": 1,
+    "source": "web",
+    "target": "native",
+    "event": "logPing",
+    "payload": {
+      "message": "hello"
+    }
+  },
+  "expect": null,
+  "calls": [
+    "logPing"
+  ]
+}

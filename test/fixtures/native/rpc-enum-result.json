@@ -1,0 +1,27 @@
+{
+  "description": "enum(platform)이 든 result",
+  "input": {
+    "type": "rpc_request",
+    "id": "4",
+    "version": 1,
+    "target": "native",
+    "method": "ping",
+    "params": {
+      "message": "hello"
+    }
+  },
+  "expect": {
+    "type": "rpc_response",
+    "id": "4",
+    "version": 1,
+    "source": "native",
+    "method": "ping",
+    "result": {
+      "reply": "pong: hello",
+      "platform": "ios"
+    }
+  },
+  "calls": [
+    "ping"
+  ]
+}

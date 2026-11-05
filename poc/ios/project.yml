@@ -1,0 +1,31 @@
+# xcodegen generate → PingPoC.xcodeproj
+# bridgegen이 만든 Swift Package(examples/ping/out/ios)를 로컬 패키지로 추가해 쓴다.
+name: PingPoC
+options:
+  bundleIdPrefix: com.example.bridgegen
+  deploymentTarget: { iOS: "15.0" }
+packages:
+  PingBridge:
+    path: ../../examples/ping/out/ios
+targets:
+  PingPoC:
+    type: application
+    platform: iOS
+    sources: [PingPoC]
+    dependencies:
+      - package: PingBridge
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.bridgegen.PingPoC
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        SWIFT_VERSION: "5.0"
+        CODE_SIGNING_ALLOWED: NO
+    info:
+      path: PingPoC/Info.plist
+      properties:
+        UILaunchScreen: {}
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        BRIDGEGEN_POC_URL: $(BRIDGEGEN_POC_URL)

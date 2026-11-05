@@ -1,0 +1,13 @@
+{
+  "description": "id가 숫자면 응답할 곳을 믿을 수 없어 버린다",
+  "input": {
+    "type": "rpc_request",
+    "id": 15,
+    "version": 1,
+    "target": "native",
+    "method": "resetPing",
+    "params": {}
+  },
+  "expect": null,
+  "calls": []
+}

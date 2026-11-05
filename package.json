@@ -1,0 +1,27 @@
+{
+  "name": "bridgegen",
+  "version": "0.1.0",
+  "description": "One AsyncAPI 3.0 spec → WebView bridge packages for Web (npm), iOS (Swift Package) and Android (Maven)",
+  "type": "module",
+  "license": "MIT",
+  "bin": { "bridgegen": "src/cli.mjs" },
+  "files": ["src", "runtime", "examples", "README.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "keywords": ["asyncapi", "webview", "bridge", "codegen", "ios", "android", "wkwebview"],
+  "scripts": {
+    "test": "vitest run && tsc -p test/tsconfig.json --noEmit",
+    "test:native": "bash test/ios/run.sh && bash test/android/run.sh",
+    "example": "node src/cli.mjs build examples/ping/asyncapi.yaml --out examples/ping/out",
+    "poc": "bash poc/run.sh"
+  },
+  "dependencies": {
+    "@asyncapi/parser": "^3.4.0",
+    "typescript": "^5.6.3",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "vitest": "^2.1.8"
+  }
+}

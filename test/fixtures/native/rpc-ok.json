@@ -1,0 +1,27 @@
+{
+  "description": "rpc_request → rpc_response.result",
+  "input": {
+    "type": "rpc_request",
+    "id": "1",
+    "version": 1,
+    "target": "native",
+    "method": "ping",
+    "params": {
+      "message": "hello"
+    }
+  },
+  "expect": {
+    "type": "rpc_response",
+    "id": "1",
+    "version": 1,
+    "source": "native",
+    "method": "ping",
+    "result": {
+      "reply": "pong: hello",
+      "platform": "ios"
+    }
+  },
+  "calls": [
+    "ping"
+  ]
+}

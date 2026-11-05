@@ -1,0 +1,26 @@
+{
+  "description": "emit 이름을 rpc_request로 부르면 METHOD_NOT_ALLOWED",
+  "input": {
+    "type": "rpc_request",
+    "id": "9",
+    "version": 1,
+    "target": "native",
+    "method": "clearPingLog",
+    "params": {}
+  },
+  "expect": {
+    "type": "rpc_response",
+    "id": "9",
+    "version": 1,
+    "source": "native",
+    "method": "clearPingLog",
+    "error": {
+      "code": "NATIVE_ERROR",
+      "retryable": false,
+      "details": {
+        "code": "METHOD_NOT_ALLOWED"
+      }
+    }
+  },
+  "calls": []
+}

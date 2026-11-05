@@ -1,0 +1,13 @@
+{
+  "description": "target이 native가 아니면 버린다",
+  "input": {
+    "type": "rpc_request",
+    "id": "16",
+    "version": 1,
+    "target": "web",
+    "method": "resetPing",
+    "params": {}
+  },
+  "expect": null,
+  "calls": []
+}

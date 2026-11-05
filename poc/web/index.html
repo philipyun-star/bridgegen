@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RUNNING</title>
+<!-- npm install 한 패키지를 번들러 없이 그대로 쓴다 -->
+<script type="importmap">
+{ "imports": { "@example/ping-bridge": "./node_modules/@example/ping-bridge/dist/src/index.js" } }
+</script>
+<style>
+  body { font: 15px/1.5 -apple-system, system-ui, sans-serif; margin: 0; padding: 20px; background: #fafafa; color: #222 }
+  h1 { font-size: 20px; margin: 0 0 4px } .sub { color: #777; font-size: 13px; margin-bottom: 16px }
+  ol { padding: 0; list-style: none; margin: 0 }
+  li { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px }
+  li b { display: inline-block; min-width: 72px; font-size: 11px; color: #fff; text-align: center; border-radius: 4px; padding: 2px 0; margin-right: 8px }
+  .REQUEST { background: #fca130 } .SEND { background: #49cc90 } .RECEIVE { background: #61affe }
+  .ok::after { content: ' ✓'; color: #16a34a; font-weight: 700 } .ng::after { content: ' ✗'; color: #dc2626; font-weight: 700 }
+  code { font: 12px ui-monospace, Menlo, monospace; color: #555; display: block; margin-top: 4px; word-break: break-all }
+  #verdict { font-size: 28px; font-weight: 800; margin: 14px 0 } .pass { color: #16a34a } .fail { color: #dc2626 }
+</style>
+</head>
+<body>
+<h1>bridgegen PoC</h1>
+<div class="sub" id="env">…</div>
+<ol id="steps"></ol>
+<div id="verdict">RUNNING</div>
+<script type="module">
+import { createBridge, isBridgeError, BRIDGE_CONTRACT_VERSION } from '@example/ping-bridge'
+
+const steps = document.getElementById('steps')
+const results = []
+const step = (badge, name, ok, detail) => {
+  results.push({ badge, name, ok, detail })
+  const li = document.createElement('li')
+  li.innerHTML = `<b class="${badge}">${badge}</b><span class="${ok ? 'ok' : 'ng'}">${name}</span><code></code>`
+  li.querySelector('code').textContent = typeof detail === 'string' ? detail : JSON.stringify(detail)
+  steps.append(li)
+}
+
+// RECEIVE는 Native가 먼저 보낸다. 페이지가 뜨자마자 구독해 둔다.
+const bridge = createBridge()
+const nativePing = new Promise((resolve) => bridge.on('nativePing', resolve))
+
+document.getElementById('env').textContent =
+  `contract ${BRIDGE_CONTRACT_VERSION} · adapter ${bridge.platform ?? 'none'} · app ${bridge.capabilities?.appVersion ?? '-'}`
+
+async function run() {
+  if (!bridge.available) return step('REQUEST', 'native bridge 없음 (일반 브라우저)', false, 'UNAVAILABLE')
+
+  const pong = await bridge.request('ping', { message: 'hello' })
+  step('REQUEST', "ping('hello') → pong", pong.reply === 'pong: hello', pong)
+
+  try {
+    await bridge.request('ping', { message: 'reject' })
+    step('REQUEST', "ping('reject') → PING_REJECTED", false, 'resolve됨')
+  } catch (e) {
+    step('REQUEST', "ping('reject') → PING_REJECTED", isBridgeError(e) && e.code === 'NATIVE_ERROR' && e.details?.code === 'PING_REJECTED', { code: e.code, details: e.details })
+  }
+
+  const reset = await bridge.request('resetPing')
+  step('REQUEST', 'resetPing → {} (완료 확인)', JSON.stringify(reset) === '{}', reset)
+
+  const sent = bridge.emit('logPing', { message: 'from web' })
+  step('SEND', "logPing('from web') (응답 없음)", sent === true, { sent })
+
+  const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('5초 안에 오지 않음')), 5000))
+  try {
+    const p = await Promise.race([nativePing, timeout])
+    step('RECEIVE', 'nativePing (Native가 먼저 보냄)', typeof p.message === 'string' && (p.platform === 'ios' || p.platform === 'android'), p)
+  } catch (e) {
+    step('RECEIVE', 'nativePing (Native가 먼저 보냄)', false, e.message)
+  }
+
+  const supported = ['ping', 'resetPing', 'logPing', 'clearPingLog'].every((n) => bridge.isSupported(n))
+  step('REQUEST', 'capabilities에 계약 operation이 모두 있음', supported, bridge.capabilities)
+}
+
+run()
+  .catch((e) => step('REQUEST', '예상하지 못한 오류', false, String(e?.code ?? e)))
+  .finally(() => {
+    const pass = results.length >= 6 && results.every((r) => r.ok)
+    const v = document.getElementById('verdict')
+    v.textContent = pass ? 'PASS' : 'FAIL'
+    v.className = pass ? 'pass' : 'fail'
+    window.__pocResult = { pass, results }
+    document.title = `${pass ? 'PASS' : 'FAIL'} ${results.filter((r) => r.ok).length}/${results.length}`
+  })
+</script>
+</body>
+</html>

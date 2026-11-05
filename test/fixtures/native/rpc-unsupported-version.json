@@ -1,0 +1,23 @@
+{
+  "description": "envelope version이 다르면 UNSUPPORTED_VERSION으로 응답",
+  "input": {
+    "type": "rpc_request",
+    "id": "13",
+    "version": 2,
+    "target": "native",
+    "method": "resetPing",
+    "params": {}
+  },
+  "expect": {
+    "type": "rpc_response",
+    "id": "13",
+    "version": 1,
+    "source": "native",
+    "method": "resetPing",
+    "error": {
+      "code": "UNSUPPORTED_VERSION",
+      "retryable": false
+    }
+  },
+  "calls": []
+}

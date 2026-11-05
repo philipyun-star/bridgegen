@@ -1,0 +1,28 @@
+{
+  "description": "params가 객체가 아니면 INVALID_PARAMS",
+  "input": {
+    "type": "rpc_request",
+    "id": "12",
+    "version": 1,
+    "target": "native",
+    "method": "ping",
+    "params": [
+      "hello"
+    ]
+  },
+  "expect": {
+    "type": "rpc_response",
+    "id": "12",
+    "version": 1,
+    "source": "native",
+    "method": "ping",
+    "error": {
+      "code": "NATIVE_ERROR",
+      "retryable": false,
+      "details": {
+        "code": "INVALID_PARAMS"
+      }
+    }
+  },
+  "calls": []
+}

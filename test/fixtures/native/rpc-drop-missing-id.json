@@ -1,0 +1,12 @@
+{
+  "description": "id가 없으면 버린다",
+  "input": {
+    "type": "rpc_request",
+    "version": 1,
+    "target": "native",
+    "method": "resetPing",
+    "params": {}
+  },
+  "expect": null,
+  "calls": []
+}

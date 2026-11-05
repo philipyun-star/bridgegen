@@ -1,0 +1,6 @@
+{
+  "description": "JSON이 아니면 버린다",
+  "inputRaw": "not json",
+  "expect": null,
+  "calls": []
+}

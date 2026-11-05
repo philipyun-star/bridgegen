@@ -1,0 +1,22 @@
+{
+  "description": "params가 null이어도 빈 객체로 본다",
+  "input": {
+    "type": "rpc_request",
+    "id": "3",
+    "version": 1,
+    "target": "native",
+    "method": "resetPing",
+    "params": null
+  },
+  "expect": {
+    "type": "rpc_response",
+    "id": "3",
+    "version": 1,
+    "source": "native",
+    "method": "resetPing",
+    "result": {}
+  },
+  "calls": [
+    "resetPing"
+  ]
+}

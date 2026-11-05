@@ -1,0 +1,26 @@
+{
+  "description": "required 필드가 없으면 INVALID_PARAMS",
+  "input": {
+    "type": "rpc_request",
+    "id": "11",
+    "version": 1,
+    "target": "native",
+    "method": "ping",
+    "params": {}
+  },
+  "expect": {
+    "type": "rpc_response",
+    "id": "11",
+    "version": 1,
+    "source": "native",
+    "method": "ping",
+    "error": {
+      "code": "NATIVE_ERROR",
+      "retryable": false,
+      "details": {
+        "code": "INVALID_PARAMS"
+      }
+    }
+  },
+  "calls": []
+}

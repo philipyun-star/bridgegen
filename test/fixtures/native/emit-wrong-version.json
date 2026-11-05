@@ -1,0 +1,13 @@
+{
+  "description": "version이 다른 event는 응답할 수 없으므로 버린다",
+  "input": {
+    "type": "event",
+    "version": 2,
+    "source": "web",
+    "target": "native",
+    "event": "clearPingLog",
+    "payload": {}
+  },
+  "expect": null,
+  "calls": []
+}

@@ -1,0 +1,14 @@
+{
+  "description": "payload가 없는 emit",
+  "input": {
+    "type": "event",
+    "version": 1,
+    "source": "web",
+    "target": "native",
+    "event": "clearPingLog"
+  },
+  "expect": null,
+  "calls": [
+    "clearPingLog"
+  ]
+}

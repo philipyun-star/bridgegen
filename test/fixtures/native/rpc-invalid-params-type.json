@@ -1,0 +1,28 @@
+{
+  "description": "params 필드 타입이 다르면 INVALID_PARAMS",
+  "input": {
+    "type": "rpc_request",
+    "id": "10",
+    "version": 1,
+    "target": "native",
+    "method": "ping",
+    "params": {
+      "message": 123
+    }
+  },
+  "expect": {
+    "type": "rpc_response",
+    "id": "10",
+    "version": 1,
+    "source": "native",
+    "method": "ping",
+    "error": {
+      "code": "NATIVE_ERROR",
+      "retryable": false,
+      "details": {
+        "code": "INVALID_PARAMS"
+      }
+    }
+  },
+  "calls": []
+}

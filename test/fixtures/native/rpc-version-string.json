@@ -1,0 +1,23 @@
+{
+  "description": "version이 문자열 \"1\"이면 정수가 아니므로 UNSUPPORTED_VERSION",
+  "input": {
+    "type": "rpc_request",
+    "id": "14",
+    "version": "1",
+    "target": "native",
+    "method": "resetPing",
+    "params": {}
+  },
+  "expect": {
+    "type": "rpc_response",
+    "id": "14",
+    "version": 1,
+    "source": "native",
+    "method": "resetPing",
+    "error": {
+      "code": "UNSUPPORTED_VERSION",
+      "retryable": false
+    }
+  },
+  "calls": []
+}

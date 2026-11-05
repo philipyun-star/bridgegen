@@ -1,0 +1,26 @@
+{
+  "description": "화이트리스트에 없는 method는 Handler를 부르지 않고 METHOD_NOT_ALLOWED",
+  "input": {
+    "type": "rpc_request",
+    "id": "8",
+    "version": 1,
+    "target": "native",
+    "method": "doesNotExist",
+    "params": {}
+  },
+  "expect": {
+    "type": "rpc_response",
+    "id": "8",
+    "version": 1,
+    "source": "native",
+    "method": "doesNotExist",
+    "error": {
+      "code": "NATIVE_ERROR",
+      "retryable": false,
+      "details": {
+        "code": "METHOD_NOT_ALLOWED"
+      }
+    }
+  },
+  "calls": []
+}

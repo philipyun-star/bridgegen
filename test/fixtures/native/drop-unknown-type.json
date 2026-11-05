@@ -1,0 +1,13 @@
+{
+  "description": "모르는 type은 버린다",
+  "input": {
+    "type": "rpc_response",
+    "id": "17",
+    "version": 1,
+    "source": "native",
+    "method": "resetPing",
+    "result": {}
+  },
+  "expect": null,
+  "calls": []
+}

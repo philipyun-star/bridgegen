@@ -1,0 +1,29 @@
+{
+  "description": "모르는 필드는 무시한다 (하위 호환)",
+  "input": {
+    "type": "rpc_request",
+    "id": "6",
+    "version": 1,
+    "target": "native",
+    "method": "ping",
+    "params": {
+      "message": "hello",
+      "futureField": 1
+    },
+    "trace": "x"
+  },
+  "expect": {
+    "type": "rpc_response",
+    "id": "6",
+    "version": 1,
+    "source": "native",
+    "method": "ping",
+    "result": {
+      "reply": "pong: hello",
+      "platform": "ios"
+    }
+  },
+  "calls": [
+    "ping"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "description": "Handler가 BridgeFailure(PING_REJECTED)를 던지면 NATIVE_ERROR + details.code",
+  "input": {
+    "type": "rpc_request",
+    "id": "7",
+    "version": 1,
+    "target": "native",
+    "method": "ping",
+    "params": {
+      "message": "reject"
+    }
+  },
+  "expect": {
+    "type": "rpc_response",
+    "id": "7",
+    "version": 1,
+    "source": "native",
+    "method": "ping",
+    "error": {
+      "code": "NATIVE_ERROR",
+      "retryable": false,
+      "details": {
+        "code": "PING_REJECTED"
+      }
+    }
+  },
+  "calls": [
+    "ping"
+  ]
+}

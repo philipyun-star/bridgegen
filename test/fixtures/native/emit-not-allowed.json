@@ -1,0 +1,16 @@
+{
+  "description": "화이트리스트에 없는 event(Native → Web 이벤트 이름)는 버린다",
+  "input": {
+    "type": "event",
+    "version": 1,
+    "source": "web",
+    "target": "native",
+    "event": "nativePing",
+    "payload": {
+      "message": "hello",
+      "platform": "ios"
+    }
+  },
+  "expect": null,
+  "calls": []
+}

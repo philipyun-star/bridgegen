@@ -1,0 +1,8 @@
+{
+  "name": "bridgegen-poc-web",
+  "private": true,
+  "description": "bridgegen이 만든 npm 패키지(tgz)를 설치해 쓰는 테스트 페이지",
+  "dependencies": {
+    "@example/ping-bridge": "file:../../examples/ping/out/example-ping-bridge-1.0.0.tgz"
+  }
+}

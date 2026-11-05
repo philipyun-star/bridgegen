@@ -1,0 +1,13 @@
+{
+  "description": "source가 web이 아니면 버린다",
+  "input": {
+    "type": "event",
+    "version": 1,
+    "source": "native",
+    "target": "native",
+    "event": "clearPingLog",
+    "payload": {}
+  },
+  "expect": null,
+  "calls": []
+}

@@ -1,0 +1,17 @@
+{
+  "event": "nativePing",
+  "payload": {
+    "message": "hello",
+    "platform": "ios"
+  },
+  "expect": {
+    "type": "event",
+    "version": 1,
+    "source": "native",
+    "event": "nativePing",
+    "payload": {
+      "message": "hello",
+      "platform": "ios"
+    }
+  }
+}
