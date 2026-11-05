@@ -24,7 +24,7 @@ WebView ↔ Native 브릿지는 보통 웹 코드, iOS 코드, Android 코드, �
 `bash poc/run.sh` 한 번으로 아래를 전부 합니다 (MacBook 기준 약 1분):
 
 1. `examples/ping/asyncapi.yaml` → npm tgz · Swift Package · 로컬 Maven 저장소(AAR) 생성
-2. 테스트 웹 페이지가 **npm 패키지를 설치**하고 `:8787`로 서빙
+2. React 테스트 앱(`poc/web`, Vite)이 **npm 패키지를 설치** · 빌드하고 `:8787`로 서빙
 3. iOS 앱이 **Swift Package를**, Android 앱이 **Maven 아티팩트를** 받아 빌드 → 시뮬레이터 · 에뮬레이터에서 실행
 4. 각 앱의 WebView가 REQUEST · SEND · RECEIVE를 실제로 주고받고 결과를 `poc/out/REPORT.md`에 기록
 
@@ -86,7 +86,8 @@ operations:
 
 ## 앱에서 쓰기
 
-**Web**
+### Web
+
 ```ts
 import { createBridge, isBridgeError } from '@acme/bridge'
 const bridge = createBridge()
@@ -94,6 +95,153 @@ const pong = await bridge.request('ping', { message: 'hello' })   // PongResult
 bridge.emit('logPing', { message: 'hi' })
 const off = bridge.on('nativePing', ({ message }) => {})
 ```
+
+세 가지 호출의 차이:
+
+| 호출 | 반환 | 언제 끝나나 | 리스너 · useEffect |
+| --- | --- | --- | --- |
+| `bridge.request(name, params)` | `Promise<Result>` | Native가 같은 `id`로 응답하면 resolve, 오류 · timeout이면 reject | 필요 없음 — `fetch`처럼 `await` |
+| `bridge.emit(name, payload)` | `boolean` (보냈는지) | 보내는 즉시 | 필요 없음 |
+| `bridge.on(name, cb)` | 해제 함수 `() => void` | 해제할 때까지 Native가 보낼 때마다 `cb` | **구독 · 해제가 필요** (React면 `useEffect`) |
+
+`createBridge()`가 Native 응답 입구(iOS `window.__receiveBridgeMessage`, Android `bridge.onmessage`)에 리스너를 **한 번** 걸고, 들어온 메시지를 `rpc_response`면 `id`로 짝을 찾아 해당 Promise에, `event`면 `bridge.on` 구독자에게 나눠 줍니다. 그래서 앱 코드에서 `window.addEventListener`나 전역 콜백(`window.onXxx = ...`)을 만들 일이 없습니다.
+
+#### React에서 쓰기
+
+**1. bridge는 앱에 하나만 — 모듈에서 만든다**
+
+컴포넌트 안(렌더 · `useEffect`)에서 `createBridge()`를 부르지 않습니다. StrictMode에서 두 번 만들어지고, 마운트 전에 Native가 보낸 이벤트를 놓칠 수 있습니다.
+
+```ts
+// src/shared/bridge.ts
+import { createBridge } from '@acme/bridge'
+
+export const bridge = createBridge()
+// 일반 브라우저(웹뷰 아님)에서도 import는 안전하다: bridge.available === false, request는 UNAVAILABLE로 reject
+```
+
+**2. REQUEST — 이벤트 핸들러에서 `await`**
+
+```tsx
+import { isBridgeError } from '@acme/bridge'
+import { bridge } from '@/shared/bridge'
+
+function PingButton() {
+  const [reply, setReply] = useState<string>()
+  const [pending, setPending] = useState(false)
+
+  const onClick = async () => {
+    setPending(true)
+    try {
+      const pong = await bridge.request('ping', { message: 'hello' })  // pong: PongResult (타입 자동)
+      setReply(pong.reply)                                              // ← 응답이 오면 여기서 처리
+    } catch (e) {
+      if (!isBridgeError(e)) throw e
+      if (e.code === 'NATIVE_ERROR' && e.details?.code === 'PING_REJECTED') setReply('거절됨')
+      else setReply(`실패: ${e.code}`)   // TIMEOUT · UNSUPPORTED_VERSION · UNAVAILABLE ...
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return <button disabled={pending} onClick={onClick}>{reply ?? 'ping'}</button>
+}
+```
+
+**3. REQUEST — 화면이 뜰 때 한 번 받아 와야 하면 `useEffect` + 취소**
+
+구독이 아니라 `fetch`와 같은 1회 호출입니다. 응답 전에 화면을 떠나면 `AbortController`로 끊습니다 (`ABORTED`로 reject).
+
+```tsx
+useEffect(() => {
+  const ac = new AbortController()
+  bridge
+    .request('ping', { message: 'init' }, { signal: ac.signal, timeoutMs: 1000 })
+    .then((pong) => setReply(pong.reply))
+    .catch((e) => {
+      if (isBridgeError(e) && e.code === 'ABORTED') return
+      setReply('앱에서 응답 없음')
+    })
+  return () => ac.abort()
+}, [])
+```
+
+데이터 페칭 라이브러리를 쓰면 `queryFn`에 그대로 넘기면 됩니다. Promise를 돌려주는 일반 API와 같습니다.
+
+```tsx
+const { data } = useQuery({
+  queryKey: ['bridge', 'ping'],
+  queryFn: ({ signal }) => bridge.request('ping', { message: 'hello' }, { signal }),
+  enabled: bridge.isSupported('ping'),   // 구버전 앱 · 일반 브라우저에서는 호출하지 않음
+})
+```
+
+**4. SEND — 보내고 끝**
+
+```tsx
+<button onClick={() => bridge.emit('logPing', { message: 'clicked' })}>log</button>
+```
+
+결과가 필요하면 SEND가 아니라 REQUEST로 정의합니다 (계약 규칙). `emit`이 `false`를 돌려주면 브릿지가 없거나 앱이 지원하지 않아 보내지 않은 것입니다.
+
+**5. RECEIVE — `useEffect`로 구독하고 해제**
+
+Native가 언제 보낼지 모르므로 화면이 떠 있는 동안만 듣습니다. `bridge.on`이 돌려주는 해제 함수를 cleanup으로 그대로 반환합니다.
+
+```tsx
+function NativePingList() {
+  const [messages, setMessages] = useState<string[]>([])
+
+  useEffect(() => {
+    return bridge.on('nativePing', (p) => {   // p: NativePingPayload (타입 자동)
+      setMessages((m) => [...m, p.message])
+    })
+  }, [])
+
+  return <ul>{messages.map((m, i) => <li key={i}>{m}</li>)}</ul>
+}
+```
+
+여러 곳에서 쓰면 훅으로 묶습니다. 콜백을 ref에 두면 렌더마다 재구독하지 않습니다.
+
+```ts
+import { useEffect, useRef } from 'react'
+import type { BridgeEvents } from '@acme/bridge'
+import { bridge } from '@/shared/bridge'
+
+export function useBridgeEvent<N extends keyof BridgeEvents>(name: N, handler: (payload: BridgeEvents[N]) => void) {
+  const ref = useRef(handler)
+  ref.current = handler
+  useEffect(() => bridge.on(name, (p) => ref.current(p)), [name])
+}
+
+// 사용
+useBridgeEvent('nativePingStopped', () => setRunning(false))
+```
+
+> Native는 웹이 준비(`bridge.hello`)되기 전에 보낸 이벤트를 쌓아 두었다가 보내 주지만, **그 시점에 구독자가 없으면 버려집니다.** 앱 시작 직후 오는 이벤트를 놓치면 안 된다면 1번의 모듈(`shared/bridge.ts`)에서 바로 구독해 store(zustand · Redux · `useSyncExternalStore`)에 넣고, 컴포넌트는 store를 읽습니다. `poc/web/src/bridge.ts`가 이 방식입니다.
+
+**6. 지원 여부로 UI 분기**
+
+```tsx
+{bridge.isSupported('ping') ? <PingButton /> : <p>앱을 업데이트해 주세요</p>}
+```
+
+`isSupported`는 앱이 문서 시작 시 주입한 `window.__bridgeCapabilities`를 봅니다. 웹이 먼저 배포되고 앱은 구버전인 경우를 여기서 걸러 냅니다.
+
+**7. 타입이 막아 주는 것**
+
+```ts
+bridge.request('pingg', { message: 'x' })   // ✗ 계약에 없는 이름
+bridge.request('ping', { msg: 'x' })        // ✗ params 필드가 다름
+const pong = await bridge.request('ping', { message: 'x' })
+pong.foo                                    // ✗ PongResult에 없는 필드
+bridge.on('nativePing', (p) => p.count)     // ✗ NativePingPayload에 없는 필드
+```
+
+전체 예시: [`poc/web`](poc/web) (React + Vite) — 버튼으로 REQUEST · SEND를 보내고, 앱 하단 네이티브 버튼으로 RECEIVE를 받으며, 주고받은 envelope 원문을 로그로 보여 줍니다.
+
+### iOS · Android
 
 **iOS**
 ```swift

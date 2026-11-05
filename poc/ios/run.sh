@@ -10,6 +10,7 @@ xcodegen generate -q
 xcodebuild -project PingPoC.xcodeproj -scheme PingPoC -destination "id=$udid" -derivedDataPath "$out/ios-dd" -quiet build
 xcrun simctl boot "$udid" 2>/dev/null || true
 xcrun simctl bootstatus "$udid" -b >/dev/null
+xcrun simctl terminate "$udid" com.example.bridgegen.PingPoC 2>/dev/null || true   # 실행 중이면 새 빌드가 반영되지 않는 경우가 있다
 xcrun simctl install "$udid" "$out/ios-dd/Build/Products/Debug-iphonesimulator/PingPoC.app"
 log="$out/ios-console.log"; : > "$log"
 xcrun simctl launch --console-pty --terminate-running-process "$udid" com.example.bridgegen.PingPoC > "$log" 2>&1 &

@@ -1,8 +1,22 @@
 {
   "name": "bridgegen-poc-web",
   "private": true,
-  "description": "bridgegen이 만든 npm 패키지(tgz)를 설치해 쓰는 테스트 페이지",
+  "type": "module",
+  "description": "bridgegen이 만든 npm 패키지(tgz)를 설치해 쓰는 React 테스트 앱",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 8787",
+    "build": "tsc --noEmit && vite build"
+  },
   "dependencies": {
-    "@example/ping-bridge": "file:../../examples/ping/out/example-ping-bridge-1.0.0.tgz"
+    "@example/ping-bridge": "file:../../examples/ping/out/example-ping-bridge-1.0.0.tgz",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.4",
+    "typescript": "5.6.3",
+    "vite": "5.4.11"
   }
 }

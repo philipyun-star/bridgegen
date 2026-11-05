@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # bridgegen PoC — 딸깍 한 번으로:
 #   1. examples/ping/asyncapi.yaml → npm(tgz) · Swift Package · Maven(AAR) · 문서 생성
-#   2. poc/web 이 npm 패키지를 설치하고 :8787 로 서빙
+#   2. poc/web (React + Vite) 이 npm 패키지를 설치 · 빌드하고 :8787 로 서빙
 #   3. iOS 앱이 Swift Package를, Android 앱이 Maven 아티팩트를 받아 빌드 · 실행
 #   4. 두 앱의 WebView가 REQUEST · SEND · RECEIVE를 실제로 주고받고 PASS/FAIL을 보고 → poc/out/REPORT.md
 #
@@ -18,11 +18,11 @@ step() { printf '\n\033[1m▸ %s\033[0m\n' "$*"; }
 step "1/4 bridgegen build"
 node src/cli.mjs build examples/ping/asyncapi.yaml --out examples/ping/out --verify-ios || exit 1
 
-step "2/4 웹 페이지에 npm 패키지 설치 + 서빙 (:8787)"
+step "2/4 React 웹 앱에 npm 패키지 설치 · 빌드 + 서빙 (:8787)"
 node -e "require('fs').rmSync('poc/web/node_modules',{recursive:true,force:true})"
-(cd poc/web && npm install --no-package-lock --silent) || exit 1
+(cd poc/web && npm install --no-package-lock --silent && npm run build --silent) || exit 1
 if ! curl -sf -o /dev/null http://localhost:8787/index.html; then
-  python3 -m http.server 8787 --bind 0.0.0.0 --directory poc/web > "$out/server.log" 2>&1 &
+  python3 -m http.server 8787 --bind 0.0.0.0 --directory poc/web/dist > "$out/server.log" 2>&1 &
   server=$!
   trap 'kill $server 2>/dev/null' EXIT
   for _ in $(seq 1 20); do curl -sf -o /dev/null http://localhost:8787/index.html && break; sleep 0.5; done
@@ -59,7 +59,7 @@ const md = `# bridgegen PoC 결과
 
 | 산출물 | 소비 방법 |
 | --- | --- |
-| \`examples/ping/out/example-ping-bridge-1.0.0.tgz\` | poc/web 이 \`npm install\` (package.json \`file:\` 의존성) |
+| \`examples/ping/out/example-ping-bridge-1.0.0.tgz\` | poc/web (React) 이 \`npm install\` (package.json \`file:\` 의존성) 후 Vite 빌드 |
 | \`examples/ping/out/ios\` (Swift Package \`PingBridge\`) | poc/ios 앱이 SPM 로컬 패키지로 추가 (project.yml) |
 | \`examples/ping/out/maven\` (\`com.example:ping-bridge:1.0.0\` AAR + POM) | poc/android 앱이 \`implementation("com.example:ping-bridge:1.0.0")\` |
 
