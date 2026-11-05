@@ -57,6 +57,154 @@ WebView ↔ Native 브릿지는 보통 웹 코드, iOS 코드, Android 코드, �
 - **준비 신호:** 웹 런타임이 수신 함수를 설치하면 `bridge.hello`를 보냅니다. Router는 그 전에 보낸 RECEIVE 이벤트를 쌓아 두었다가 이때 보냅니다. WKWebView의 `didFinish` 시점에도 페이지의 모듈 스크립트가 아직 실행 전일 수 있기 때문입니다.
 - **오류:** 모든 실패는 `BridgeError { code, message, retryable, details }`로 정규화됩니다. code는 `UNAVAILABLE` · `SEND_FAILED` · `TIMEOUT` · `NATIVE_ERROR` · `INVALID_RESPONSE` · `UNSUPPORTED_VERSION` · `ABORTED`입니다.
 
+## 동작 원리 — `request` 한 번이 오가는 길
+
+`bridge.request()`는 **Promise**, Native Handler는 **Swift `async throws` / Kotlin `suspend`** 입니다. 그 사이를 envelope의 `id` 하나로 잇습니다.
+
+```mermaid
+sequenceDiagram
+    participant C as 웹 코드
+    participant W as Web runtime<br/>(bridge.ts)
+    participant R as NativeBridgeRouter
+    participant P as BridgeMessageProcessor<br/>(생성 코드)
+    participant H as 앱의 Handler
+
+    C->>W: await bridge.request('ping', {message})
+    Note over W: id 생성 · pending.set(id, {resolve, reject})<br/>timeout 타이머 시작 (x-timeout-ms)
+    W->>R: rpc_request {id, method:'ping', params}
+    Note over R: main frame · 허용 origin 검사<br/>(아니면 응답 없이 버림)
+    R->>P: Task { } / scope.launch { }
+    P->>P: method 화이트리스트 · params 디코딩
+    P->>H: try await handler.ping(params)
+    H-->>P: return PongResult  (또는 throw)
+    P-->>R: rpc_response {id, result | error}
+    R-->>W: iOS: callAsyncJavaScript → __receiveBridgeMessage<br/>Android: replyProxy.postMessage → bridge.onmessage
+    Note over W: pending.get(id) → 타이머 해제<br/>result → resolve · error → reject(BridgeError)
+    W-->>C: PongResult
+```
+
+### 1. Web — Promise를 만들고 `id`로 기다린다 (`runtime/web/bridge.ts`)
+
+```ts
+// createBridge() 안 (요약)
+const pending = new Map<string, { resolve, reject, cleanup }>()
+
+// ① 응답 입구는 하나. createBridge()가 한 번만 구독한다.
+adapter.subscribe((raw) => {
+  const msg = parseIncoming(raw)                    // envelope 형식 검증 (틀리면 버리고 로그)
+  if (msg.type === 'rpc_response') {
+    const p = pending.get(msg.id)
+    if (!p) return log('unmatched')                 // 이미 timeout · 취소된 요청의 늦은 응답 → 무시
+    p.cleanup()                                     // 타이머 해제 · pending에서 삭제
+    msg.error ? p.reject(BridgeError.fromWire(msg.error)) : p.resolve(msg.result ?? {})
+  } else {
+    listeners.get(msg.event)?.forEach((l) => l(msg.payload))   // RECEIVE → bridge.on 구독자
+  }
+})
+
+// ② request = Promise 하나 + pending 등록 + 전송
+request(name, params, opts) {
+  if (!adapter)              return Promise.reject(UNAVAILABLE)          // 웹뷰가 아님
+  if (!isSupported(name))    return Promise.reject(UNSUPPORTED_VERSION)  // 앱이 모르는 method → 보내지 않음
+  return new Promise((resolve, reject) => {
+    const id = generateId()
+    const timer = setTimeout(() => { cleanup(); reject(TIMEOUT) }, timeoutMs)
+    opts.signal?.addEventListener('abort', () => { cleanup(); reject(ABORTED) })
+    pending.set(id, { resolve, reject, cleanup })
+    try { adapter.post({ type: 'rpc_request', id, version: 1, target: 'native', method: name, params }) }
+    catch (e) { cleanup(); reject(SEND_FAILED) }
+  })
+}
+```
+
+- **동시 호출:** `ping`을 여러 번 동시에 보내도 응답마다 `id`가 달라 각자의 Promise로 갑니다. 응답 순서가 바뀌어도 괜찮습니다.
+- **Promise는 정확히 한 번 끝난다:** resolve · reject · timeout · abort 중 먼저 온 것이 `cleanup()`으로 `pending`에서 지웁니다. 늦게 온 응답은 `unmatched` 로그만 남습니다.
+- **플랫폼 차이는 adapter만 안다** (`runtime/web/adapter.ts`):
+
+  | | 보내기 (Web → Native) | 받기 (Native → Web) |
+  | --- | --- | --- |
+  | iOS | `webkit.messageHandlers.bridge.postMessage(envelope)` | Native가 `window.__receiveBridgeMessage(json)` 호출 |
+  | Android | `window.bridge.postMessage(JSON 문자열)` (`addWebMessageListener`가 주입한 객체) | `window.bridge.onmessage` |
+
+### 2. Native Router — 받아서 비동기로 처리하고 같은 `id`로 답한다
+
+**iOS** (`runtime/ios/NativeBridgeRouter.swift`)
+```swift
+func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage) {
+    guard message.frameInfo.isMainFrame, policy.allows(origin) else { return }   // iframe · 다른 origin → 버림
+    Task { @MainActor in
+        if let response = await BridgeMessageProcessor.handle(messageBody: body, handler: handler, onLog: onLog) {
+            deliver(response)
+        }
+    }
+}
+private func deliver(_ envelope: Data) {
+    // 문자열을 JS에 이어 붙이지 않고 arguments로 넘긴다 → 주입 불가
+    webView.callAsyncJavaScript("window.__receiveBridgeMessage && window.__receiveBridgeMessage(m)",
+                                arguments: ["m": String(decoding: envelope, as: UTF8.self)], in: nil, in: .page)
+}
+```
+
+**Android** (`runtime/android/NativeBridgeRouter.kt`)
+```kotlin
+WebViewCompat.addWebMessageListener(webView, "bridge", allowedOriginRules) { _, message, _, isMainFrame, replyProxy ->
+    if (!isMainFrame) return@addWebMessageListener                 // origin은 allowedOriginRules가 이미 걸렀다
+    scope.launch {                                                  // lifecycleScope → 화면이 사라지면 함께 취소
+        val response = BridgeMessageProcessor.handle(data, handler, onLog) ?: return@launch
+        replyProxy.postMessage(response)                            // 요청을 보낸 그 frame으로 응답
+    }
+}
+```
+
+### 3. 생성 코드 — method 이름으로 Handler를 고르고 오류를 정규화한다
+
+`BridgeMessageProcessor`는 계약에서 생성됩니다 (`BridgeContract.swift` / `BridgeContract.kt`). operation마다 한 줄씩 나옵니다.
+
+```swift
+// 먼저 method 문자열을 계약의 enum으로 바꾼다. 없으면 → METHOD_NOT_ALLOWED
+guard let m = BridgeMethod(rawValue: method) else {
+    return fail(.nativeError, "화이트리스트에 없는 method", details: .methodNotAllowed)
+}
+do {
+    switch m {                       // enum이라 operation이 추가되면 여기 · Handler 둘 다 컴파일 에러
+    case .ping:
+        return reply(try await handler.ping(try BridgeCoding.decode(PingParams.self, obj["params"])))
+    case .resetPing:
+        try await handler.resetPing()
+        return reply(EmptyPayload())
+    }
+} catch let failure as BridgeFailure {      // Handler가 계약의 오류 코드로 throw
+    return fail(.nativeError, failure.message, details: failure.code, retryable: failure.retryable)
+} catch is DecodingError {                  // params가 계약과 다름
+    return fail(.nativeError, "params가 계약과 다름", details: .invalidParams)
+} catch {                                   // 그 밖의 예외
+    return fail(.nativeError, String(describing: error), details: .internal)
+}
+```
+
+Kotlin도 같은 구조입니다 (`BridgeMethod.fromWire(method)` → `when (m) { BridgeMethod.PING -> reply(..., handler.ping(decode(...))) }`).
+
+Handler가 던진 것은 모두 `rpc_response.error`로 바뀌어 웹의 Promise를 reject합니다.
+
+| Native에서 일어난 일 | 웹이 받는 `BridgeError` |
+| --- | --- |
+| `return value` | resolve(`value`) — 반환 타입이 없으면 `{}` (완료 확인) |
+| `throw BridgeFailure(.pingRejected, "…")` | `NATIVE_ERROR`, `details.code = 'PING_REJECTED'` (계약의 `x-native-errors`) |
+| params가 계약과 다름 (디코딩 실패) | `NATIVE_ERROR`, `details.code = 'INVALID_PARAMS'` |
+| 계약에 없는 method | `NATIVE_ERROR`, `details.code = 'METHOD_NOT_ALLOWED'` |
+| 그 밖의 예외 | `NATIVE_ERROR`, `details.code = 'INTERNAL'` |
+| envelope `version`이 다름 | `UNSUPPORTED_VERSION` |
+| 응답이 `x-timeout-ms` 안에 오지 않음 | `TIMEOUT` (웹 타이머) |
+
+Handler가 오래 걸리는 일(API 호출, 권한 팝업)을 `await`해도 됩니다. 그동안 웹의 Promise는 pending 상태이며, timeout 안에 return하면 resolve됩니다. 사용자 입력처럼 오래 걸리는 operation은 계약에서 `x-timeout-ms`를 넉넉히 둡니다.
+
+### 4. RECEIVE는 왜 다르게 동작하나
+
+RECEIVE(Native가 먼저 보내는 event)에는 기다리는 Promise가 없으므로 `id`가 없습니다. `router.send(.nativePing(...))`는 envelope를 만들어 같은 입구(`__receiveBridgeMessage` / `onmessage`)로 보내고, Web runtime이 `bridge.on` 구독자에게 나눠 줍니다.
+
+- **웹 준비 전에 보낸 이벤트:** 웹 runtime이 수신 함수를 설치한 뒤 `bridge.hello`를 보낼 때까지 Router가 최대 32개를 쌓아 두었다가 hello를 받으면 보냅니다.
+- **페이지 이동:** iOS는 새 문서의 document-start 스크립트가 `bridge.documentStart`를 보내면 준비 상태를 끄고, 새 hello가 오면 다시 켭니다. Android는 hello를 보낸 문서의 `replyProxy`로 이벤트를 보내고, 새 문서가 hello를 보내면 그 proxy로 바꿉니다. **알려진 한계:** Android에서는 이동 직후부터 새 hello가 오기 전까지 보낸 이벤트가 이전 문서의 proxy로 가서 사라질 수 있습니다.
+
 ## spec 작성
 
 `bridgegen init`이 예시(`examples/ping/asyncapi.yaml`)를 복사해 줍니다.
